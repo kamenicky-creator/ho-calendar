@@ -30,6 +30,7 @@ const MSG_PROXY = {
   proxy_not_configured: 'Vo Verceli chýba premenná GAS_URL alebo GAS_KEY.',
   proxy_key_mismatch: 'GAS_KEY vo Verceli nesedí s kľúčom v Apps Scripte.'
 };
+const ADMIN_ID = '_admin';
 
 /* ---------- pomocné funkcie ---------- */
 const $ = s => document.querySelector(s);
@@ -115,7 +116,8 @@ const S = {
   months: {},
   ym: ymOf(START), sel: START,
   brush: ST[lsGet('brush')] ? lsGet('brush') : 'ho',
-  me: lsGet('me') || '',
+  me: PROXY ? '' : (lsGet('me') || ''),
+  role: PROXY ? 'u' : 'a',          // u = člen tímu (mení len svoje dni), a = správca
   slow: false, err: '', errKind: '', keyBad: false
 };
 const drafts = {}, noteTimers = {};
@@ -157,6 +159,9 @@ function visibleMembers(ym){
   return S.team.filter(t => t.active || (m && m.people[t.id] && m.people[t.id].exists));
 }
 const canEdit = () => S.mode==='live' || S.mode==='local';
+const canEditCell = id => !PROXY || S.role==='a' || id===S.me;
+const canEditTeam = () => canEdit() && (!PROXY || S.role==='a');
+const meName = () => S.me===ADMIN_ID ? 'Správca' : ((S.team.find(t => t.id===S.me) || {}).name || '');
 
 /* ---------- komunikácia so serverom (Google Apps Script) ---------- */
 async function call(action, payload){
@@ -184,8 +189,59 @@ function applyMonth(ym, data){
   if(data && isObj(data.people)) for(const id of Object.keys(data.people)) people[id] = {exists:true, d:cleanStatuses(data.people[id])};
   m.people = people;
   m.notes = {d:cleanNotes(data && data.notes)};
+  if(data && Array.isArray(data.log)) m.log = data.log.filter(isObj).slice(0,30).map(e => ({
+    t:String(e.t||''), by:String(e.by||'').slice(0,40), what:String(e.what||''), date:String(e.date||''),
+    whom:String(e.whom||'').slice(0,40), from:String(e.from||'').slice(0,200), to:String(e.to||'').slice(0,200)
+  }));
   m.seen = true;
   applyOverlays(ym);
+}
+
+/* ---------- kto som (prihlásenie na Verceli) ---------- */
+async function whoami(member){
+  let res;
+  try {
+    res = await fetch('/api/whoami', member === undefined
+      ? {credentials:'same-origin'}
+      : {method:'POST', credentials:'same-origin', body: JSON.stringify({member})});
+  } catch(e){ throw {code:'network'}; }
+  if(res.status === 401){ goLogin(); throw {code:'login_required'}; }
+  let j;
+  try { j = await res.json(); } catch(e){ throw {code:'network'}; }
+  if(!j || !j.ok) throw {code:(j && j.error) || 'server_error'};
+  return j.data || {};
+}
+async function startProxy(){
+  renderAll();
+  try {
+    const w = await whoami();
+    S.role = w.role === 'a' ? 'a' : 'u';
+    if(w.member && w.member !== '-'){ S.me = w.member; renderAll(); sync(); }
+    else await startPick();
+  } catch(e){
+    onLoadError(e); renderAll();
+    if(e && e.code==='network') setTimeout(startProxy, 5000);
+  }
+}
+async function startPick(){
+  S.mode = 'pick'; S.me = '';
+  renderAll();
+  try { applyTeam(await call('team')); S.err = ''; S.errKind = ''; }
+  catch(e){ onLoadError(e); }
+  renderAll();
+}
+async function chooseMe(id){
+  try {
+    const w = await whoami(id);
+    S.me = w.member; S.role = w.role === 'a' ? 'a' : 'u';
+    S.mode = 'loading'; S.err = ''; S.errKind = '';
+    renderAll();
+    sync();
+  } catch(e){
+    if(e && e.code==='unknown_member') toast('Toto meno už v tíme nie je. Obnov stránku.');
+    else onLoadError(e);
+    renderAll();
+  }
 }
 
 let pollT = 0, syncing = false, syncAgain = false;
@@ -194,7 +250,7 @@ function schedulePoll(){
   pollT = setTimeout(() => { if(document.visibilityState === 'hidden') schedulePoll(); else sync(); }, POLL_MS);
 }
 async function sync(){
-  if(!API || S.mode==='local' || S.mode==='nokey') return;
+  if(!API || S.mode==='local' || S.mode==='nokey' || S.mode==='pick') return;
   if(syncing){ syncAgain = true; return; }
   syncing = true;
   const ym = S.ym, s0 = seq;
@@ -219,6 +275,7 @@ async function sync(){
 function onLoadError(e){
   const code = e && e.code;
   if(code==='login_required') return;
+  if(code==='identity_required'){ startPick(); return; }
   if(MSG_PROXY[code]){ S.err = MSG_PROXY[code]; S.errKind = 'config'; return; }
   if(code==='unauthorized'){ toKeyMode(true); return; }
   if(code==='not_configured'){ S.err = MSG_NOT_CONFIGURED; S.errKind = 'config'; return; }
@@ -293,6 +350,8 @@ async function persist(path, patch){
 function onWriteError(e, path, patch, w){
   const code = e && e.code;
   if(code==='login_required') return;
+  if(code==='identity_required'){ startPick(); return; }
+  if(code==='forbidden'){ toast('Túto zmenu môže urobiť len správca.'); setTimeout(sync, 300); return; }
   if(MSG_PROXY[code]){ S.err = MSG_PROXY[code]; S.errKind = 'config'; return; }
   if(code==='unauthorized'){ toKeyMode(true); return; }
   if(code==='not_configured'){ S.err = MSG_NOT_CONFIGURED; S.errKind = 'config'; return; }
@@ -367,7 +426,7 @@ function renderAll(opts){
   if(ae && ae.classList && (ae.classList.contains('note') || ae.id==='keyInput')){ s0 = ae.selectionStart; s1 = ae.selectionEnd; }
   const keyVal = ae && ae.id==='keyInput' ? ae.value : null;
   const wrap = $('#gridWrap'), sl = wrap.scrollLeft, st = wrap.scrollTop;
-  renderSync(); renderBoard(); renderToolbar(); renderGrid();
+  renderSync(); renderPicker(); renderBoard(); renderToolbar(); renderGrid(); renderLog();
   if(opts && opts.resetScroll){ wrap.scrollTop = 0; } else { wrap.scrollLeft = sl; wrap.scrollTop = st; }
   if(fk){
     const el = document.querySelector('[data-fk="'+cssEsc(fk)+'"]');
@@ -384,6 +443,7 @@ function renderSync(){
   for(const w of writers.values()) if(w.pending || w.inflight){ busy = true; break; }
   let t, cls = '';
   if(S.mode==='nokey'){ t = 'Chýba tímový kľúč'; cls = 'key'; }
+  else if(S.mode==='pick' && !S.err){ t = 'Vyber, kto si'; cls = 'key'; }
   else if(S.err){ t = S.err; cls = 'err'; }
   else if(S.mode==='loading'){ t = 'Pripájam sa…'; cls = 'busy'; }
   else if(busy){ t = 'Ukladám…'; cls = 'busy'; }
@@ -421,6 +481,7 @@ function renderBoard(){
   box.innerHTML = h;
 }
 const HINT = 'Vyber hore, čo chceš označiť, a klikni do políčka. Druhým klikom ho vrátiš na „Kancelária“. Na počítači môžeš myšou ťahať cez viac dní naraz, šípkami sa pohybuješ po tabuľke. Klikom na dátum zobrazíš daný deň hore.';
+const HINT_OWN = 'Vyber hore, čo chceš označiť, a klikni do svojho stĺpca. Druhým klikom ho vrátiš na „Kancelária“. Ostatné stĺpce upraví správca, poznámky ku dňom môže meniť každý. Každá zmena sa zapíše do zoznamu posledných zmien.';
 let meSig = '';
 function renderToolbar(){
   const [y, mo] = S.ym.split('-').map(Number);
@@ -428,10 +489,17 @@ function renderToolbar(){
   $('#brushes').hidden = S.mode==='nokey';
   document.querySelector('.tools').hidden = S.mode==='nokey';
   $('#hint').hidden = S.mode==='nokey';
-  $('#teamBtn').hidden = !canEdit();
+  $('#teamBtn').hidden = !canEditTeam();
+  $('#meLabel').hidden = PROXY;
   $('#hint').textContent = S.mode==='local'
     ? HINT + ' Kalendár zatiaľ nie je pripojený na server, zmeny vidíš len ty v tomto prehliadači.'
-    : HINT;
+    : (PROXY && S.role!=='a' ? HINT_OWN : HINT);
+  const who = $('#who');
+  if(who){
+    const nm = PROXY && S.mode!=='pick' ? meName() : '';
+    who.hidden = !nm;
+    who.innerHTML = nm ? 'Ty: <b>' + esc(nm) + '</b>' + (S.role==='a' && S.me!==ADMIN_ID ? ' (správca)' : '') : '';
+  }
   document.querySelectorAll('.brush').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.brush===S.brush)));
   const act = S.team.filter(t => t.active);
   const sig = act.map(t => t.id+':'+t.name).join('|');
@@ -441,6 +509,45 @@ function renderToolbar(){
     sel.innerHTML = '<option value="">vyber sa</option>' + act.map(t => '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
   }
   sel.value = act.some(t => t.id===S.me) ? S.me : '';
+}
+function renderPicker(){
+  const pick = S.mode==='pick';
+  $('#picker').hidden = !pick;
+  $('#boardSec').hidden = pick;
+  $('#sheetSec').hidden = pick;
+  if(!pick) return;
+  $('#pickSub').textContent = S.role==='a'
+    ? 'Prihlásil si sa ako správca: môžeš meniť dni všetkých aj zoznam tímu. Vyber, pod akým menom sa budú zmeny zapisovať.'
+    : 'Vyber svoje meno. Zaklikávať budeš môcť len svoje dni a každá zmena sa zapíše pod tvojím menom.';
+  const list = $('#pickList');
+  if(S.err){ list.innerHTML = '<li class="muted">' + esc(S.err) + '</li>'; return; }
+  if(!S.teamLoaded){ list.innerHTML = '<li class="muted">Načítavam tím…</li>'; return; }
+  const act = S.team.filter(t => t.active);
+  let h = act.map(t => '<li><button class="magnet s-o" data-me="'+esc(t.id)+'">'+esc(t.name)+'</button></li>').join('');
+  if(S.role==='a') h += '<li><button class="magnet s-sc" data-me="'+ADMIN_ID+'">Správca, nie som v zozname</button></li>';
+  list.innerHTML = h || '<li class="muted">V tíme zatiaľ nikto nie je.</li>';
+}
+$('#pickList').addEventListener('click', e => {
+  const b = e.target.closest('[data-me]');
+  if(!b) return;
+  $('#pickList').querySelectorAll('button').forEach(x => { x.disabled = true; });
+  chooseMe(b.dataset.me);
+});
+function fmtDay(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? (+m[3])+'. '+(+m[2])+'.' : ''; }
+function fmtTime(t){ const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(t); return m ? (+m[3])+'. '+(+m[2])+'. '+m[4] : t; }
+function renderLog(){
+  const box = $('#logBox'), m = S.months[S.ym];
+  const show = !!(m && m.seen && Array.isArray(m.log)) && S.mode!=='pick' && S.mode!=='nokey' && S.mode!=='local';
+  box.hidden = !show;
+  if(!show) return;
+  $('#logSum').textContent = 'Posledné zmeny v mesiaci' + (m.log.length ? ' (' + m.log.length + ')' : '');
+  $('#logList').innerHTML = m.log.length ? m.log.map(e => {
+    let what;
+    if(e.what==='Stav') what = esc(e.whom) + ', ' + fmtDay(e.date) + ': ' + esc(e.from) + ' → ' + esc(e.to);
+    else if(e.what==='Poznámka') what = e.to ? 'poznámka ' + fmtDay(e.date) + ': „' + esc(e.to) + '“' : 'poznámka ' + fmtDay(e.date) + ' zmazaná';
+    else what = 'tím: ' + esc(e.whom) + ', ' + (e.from ? esc(e.from) + ' → ' : '') + esc(e.to);
+    return '<li><time>' + esc(fmtTime(e.t)) + '</time><span><b>' + esc(e.by) + '</b> ' + what + '</span></li>';
+  }).join('') : '<li class="empty">V tomto mesiaci zatiaľ nikto nič nezmenil.</li>';
 }
 const countHtml = (office, total) => '<b>'+office+'</b><span>/'+total+'</span>';
 const cellInner = s => s==='o' ? '<span class="dot" aria-hidden="true"></span>' : '<span class="pill" aria-hidden="true">'+ST[s].short+'</span>';
@@ -489,8 +596,8 @@ function renderGrid(){
     mem.forEach((x, ci) => {
       const s = statusOf(ym, x.id, dd);
       if(s==='o') office++;
-      const base = x.name+', '+dateLbl;
-      h += '<td class="c-m'+(x.id===S.me?' me':'')+'"><button class="cell s-'+s+'" data-m="'+esc(x.id)+'" data-dd="'+dd+'" data-r="'+r+'" data-c="'+ci+'" data-fk="c-'+dd+'-'+esc(x.id)+'" data-label="'+esc(base)+'" aria-label="'+esc(base+': '+ST[s].label)+'">'+cellInner(s)+'</button></td>';
+      const base = x.name+', '+dateLbl, lock = !canEditCell(x.id);
+      h += '<td class="c-m'+(x.id===S.me?' me':'')+'"><button class="cell s-'+s+(lock?' locked':'')+'"'+(lock?' aria-disabled="true"':'')+' data-m="'+esc(x.id)+'" data-dd="'+dd+'" data-r="'+r+'" data-c="'+ci+'" data-fk="c-'+dd+'-'+esc(x.id)+'" data-label="'+esc(base)+'" aria-label="'+esc(base+': '+ST[s].label)+'">'+cellInner(s)+'</button></td>';
     });
     const nv = noteOf(ym, dd);
     h += '<td class="c-count'+(office===0?' zero':'')+'">'+countHtml(office, cols)+'</td>';
@@ -546,6 +653,7 @@ grid.addEventListener('pointerdown', e => {
   cell.focus({preventScroll:true});
   skipClick = true;
   if(!canEdit()){ waitNotice(); return; }
+  if(!canEditCell(cell.dataset.m)){ lockedNotice(); return; }
   drag = {val:targetVal(cell), done:new Set()};
   drag.done.add(cell.dataset.m+'/'+cell.dataset.dd);
   setCell(cell, drag.val);
@@ -555,7 +663,7 @@ grid.addEventListener('pointerover', e => {
   const cell = e.target.closest('.cell');
   if(!cell) return;
   const k = cell.dataset.m+'/'+cell.dataset.dd;
-  if(drag.done.has(k)) return;
+  if(drag.done.has(k) || !canEditCell(cell.dataset.m)) return;
   drag.done.add(k);
   setCell(cell, drag.val);
 });
@@ -576,6 +684,7 @@ grid.addEventListener('click', e => {
   const cell = e.target.closest('.cell');
   if(!cell) return;
   if(!canEdit()){ waitNotice(); return; }
+  if(!canEditCell(cell.dataset.m)){ lockedNotice(); return; }
   setCell(cell, targetVal(cell));
 });
 grid.addEventListener('keydown', e => {
@@ -662,13 +771,20 @@ BRUSHES.forEach(b => {
   btn.addEventListener('click', () => { S.brush = b; lsSet('brush', b); renderToolbar(); });
   brushes.appendChild(btn);
 });
-$('#me').addEventListener('change', e => { S.me = e.target.value; lsSet('me', S.me); renderAll(); });
+$('#me').addEventListener('change', e => { if(PROXY) return; S.me = e.target.value; lsSet('me', S.me); renderAll(); });
 
 let toastT = 0;
 function toast(msg){
   const t = $('#toast');
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4200);
+}
+let lockedT = 0;
+function lockedNotice(){
+  const n = Date.now();
+  if(n - lockedT < 2500) return;
+  lockedT = n;
+  toast('Meniť môžeš len svoje dni. Ostatné stĺpce upraví správca.');
 }
 function waitNotice(){
   toast(S.mode==='nokey' ? 'Najprv zadaj tímový kľúč.' : 'Chvíľu strpenia, kalendár sa ešte načítava.');
@@ -685,7 +801,7 @@ function slug(name){
   return id;
 }
 function openTeam(){
-  if(!canEdit()){ waitNotice(); return; }
+  if(!canEditTeam()){ waitNotice(); return; }
   draft = S.team.map(m => Object.assign({}, m));
   renderTeam();
   if(typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open','');
@@ -734,7 +850,7 @@ $('#saveTeam').addEventListener('click', () => {
   S.team = clean;
   S.teamLoaded = true;
   queueWrite('team/config', {members:clean}, 0);
-  if(S.me && !clean.some(m => m.id===S.me && m.active)){ S.me = ''; lsSet('me', ''); }
+  if(!PROXY && S.me && !clean.some(m => m.id===S.me && m.active)){ S.me = ''; lsSet('me', ''); }
   dlg.close();
   toast('Tím je uložený.');
   renderAll();
@@ -754,6 +870,7 @@ if(PROXY && $('#logout')) $('#logout').hidden = false;
 document.title = TEAM_NAME + ': kancelária a home office';
 ensureMonth(S.ym);
 if(!API) startLocal();
-else if(!KEY && !PROXY){ S.mode = 'nokey'; renderAll(); }
+else if(PROXY) startProxy();
+else if(!KEY){ S.mode = 'nokey'; renderAll(); }
 else { renderAll(); sync(); }
 })();
