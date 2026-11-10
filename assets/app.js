@@ -6,6 +6,8 @@ const CFG = window.HO_CONFIG || {};
 const API = String(CFG.apiUrl || '').trim();
 const TEAM_NAME = String(CFG.teamName || '').trim() || 'Tím';
 const POLL_MS = Math.max(20, Number(CFG.pollSeconds) || 60) * 1000;
+// apiUrl začínajúce lomkou (napr. /api/data) = kalendár za prihlásením na Verceli; kľúč drží server.
+const PROXY = API.charAt(0) === '/';
 
 const ST = {
   o:  {label:'Kancelária',        short:''},
@@ -24,6 +26,10 @@ const WDS = ['Ne','Po','Ut','St','Št','Pi','So'];
 const HFIX = {'01-01':'Nový rok','05-01':'Sviatok práce','05-08':'Deň víťazstva','07-05':'Cyril a Metod','07-06':'Majster Ján Hus','09-28':'Deň českej štátnosti','10-28':'Vznik samostatného Československa','11-17':'Deň boja za slobodu a demokraciu','12-24':'Štedrý deň','12-25':'1. sviatok vianočný','12-26':'2. sviatok vianočný'};
 const MSG_NOT_CONFIGURED = 'Na serveri chýba tímový kľúč. V Apps Scripte spusti funkciu vytvorTimovyKluc.';
 const MSG_OFFLINE = 'Server neodpovedá, skúšam znova. Zobrazené dáta môžu byť neaktuálne.';
+const MSG_PROXY = {
+  proxy_not_configured: 'Vo Verceli chýba premenná GAS_URL alebo GAS_KEY.',
+  proxy_key_mismatch: 'GAS_KEY vo Verceli nesedí s kľúčom v Apps Scripte.'
+};
 
 /* ---------- pomocné funkcie ---------- */
 const $ = s => document.querySelector(s);
@@ -93,7 +99,11 @@ function readKey(){
   } catch(e){}
   return k || lsGet('kluc') || '';
 }
-let KEY = readKey();
+let KEY = PROXY ? '' : readKey();
+function goLogin(){
+  const back = location.pathname + location.search;
+  location.href = '/login' + (back && back !== '/' ? '?next=' + encodeURIComponent(back) : '');
+}
 
 const now = new Date();
 const TODAY = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -153,8 +163,10 @@ async function call(action, payload){
   let res;
   try {
     // Telo ako obyčajný text: prehliadač tak neposiela predbežný CORS dopyt, ktorý Apps Script nevie obslúžiť.
-    res = await fetch(API, {method:'POST', redirect:'follow', body: JSON.stringify(Object.assign({action, key:KEY}, payload || {}))});
+    const req = Object.assign({action}, PROXY ? {} : {key:KEY}, payload || {});
+    res = await fetch(API, {method:'POST', redirect:'follow', credentials:'same-origin', body: JSON.stringify(req)});
   } catch(e){ throw {code:'network'}; }
+  if(res.status === 401 && PROXY){ goLogin(); throw {code:'login_required'}; }
   if(!res.ok) throw {code:'network'};
   let j;
   try { j = await res.json(); } catch(e){ throw {code:'network'}; }
@@ -206,6 +218,8 @@ async function sync(){
 }
 function onLoadError(e){
   const code = e && e.code;
+  if(code==='login_required') return;
+  if(MSG_PROXY[code]){ S.err = MSG_PROXY[code]; S.errKind = 'config'; return; }
   if(code==='unauthorized'){ toKeyMode(true); return; }
   if(code==='not_configured'){ S.err = MSG_NOT_CONFIGURED; S.errKind = 'config'; return; }
   S.err = MSG_OFFLINE; S.errKind = 'load';
@@ -278,6 +292,8 @@ async function persist(path, patch){
 }
 function onWriteError(e, path, patch, w){
   const code = e && e.code;
+  if(code==='login_required') return;
+  if(MSG_PROXY[code]){ S.err = MSG_PROXY[code]; S.errKind = 'config'; return; }
   if(code==='unauthorized'){ toKeyMode(true); return; }
   if(code==='not_configured'){ S.err = MSG_NOT_CONFIGURED; S.errKind = 'config'; return; }
   if(code==='bad_request'){ toast('Server túto zmenu odmietol.'); return; }
@@ -734,9 +750,10 @@ window.addEventListener('online', () => sync());
 
 /* ---------- štart ---------- */
 $('#brand').textContent = TEAM_NAME + ': kancelária a home office';
+if(PROXY && $('#logout')) $('#logout').hidden = false;
 document.title = TEAM_NAME + ': kancelária a home office';
 ensureMonth(S.ym);
 if(!API) startLocal();
-else if(!KEY){ S.mode = 'nokey'; renderAll(); }
+else if(!KEY && !PROXY){ S.mode = 'nokey'; renderAll(); }
 else { renderAll(); sync(); }
 })();
