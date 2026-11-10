@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kancelária a home office</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%A0%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <span class="brand" id="brand">Kancelária a home office</span>
+    <span class="sync busy" id="sync" role="status" aria-live="polite">Pripájam sa…</span>
+  </header>
+
+  <section class="board" aria-labelledby="bTitle">
+    <div>
+      <h1 id="bTitle"><span class="wd" id="bWd"></span><span class="dt" id="bDt"></span></h1>
+      <div class="board-nav">
+        <button class="btn icon" id="prevDay" aria-label="Predchádzajúci pracovný deň">‹</button>
+        <button class="btn" id="todayBtn">Dnes</button>
+        <button class="btn icon" id="nextDay" aria-label="Nasledujúci pracovný deň">›</button>
+      </div>
+    </div>
+    <div class="groups" id="groups"></div>
+    <p class="board-note" id="bNote" hidden></p>
+  </section>
+
+  <section aria-label="Mesačná tabuľka">
+    <div class="toolbar">
+      <div class="month">
+        <button class="btn icon" id="prevMonth" aria-label="Predchádzajúci mesiac">‹</button>
+        <h2 id="monthTitle"></h2>
+        <button class="btn icon" id="nextMonth" aria-label="Nasledujúci mesiac">›</button>
+      </div>
+      <div class="brushes" id="brushes" role="group" aria-label="Čo označí kliknutie do tabuľky">
+        <span class="brush-label">Klik označí:</span>
+      </div>
+      <div class="tools">
+        <label>Ja som <select id="me" data-fk="me"></select></label>
+        <button class="btn small" id="teamBtn">Upraviť tím</button>
+      </div>
+    </div>
+    <div class="grid-wrap" id="gridWrap"><table id="grid"></table></div>
+    <p class="hint" id="hint">Vyber hore, čo chceš označiť, a klikni do políčka. Druhým klikom ho vrátiš na „Kancelária“. Na počítači môžeš myšou ťahať cez viac dní naraz, šípkami sa pohybuješ po tabuľke. Klikom na dátum zobrazíš daný deň hore.</p>
+  </section>
+</div>
+
+<dialog id="teamDlg" aria-labelledby="teamTitle">
+  <h2 id="teamTitle">Tím</h2>
+  <p class="sub">Poradie tu určuje poradie stĺpcov. Skrytí kolegovia zmiznú z tabuľky, ich história zostane.</p>
+  <ul class="team-list" id="teamActive"></ul>
+  <div class="add-row">
+    <input id="newName" type="text" maxlength="40" placeholder="Meno nového kolegu" aria-label="Meno nového kolegu">
+    <button class="btn small" id="addMember">Pridať</button>
+  </div>
+  <div id="archWrap">
+    <h3>Skrytí kolegovia</h3>
+    <ul class="team-list" id="teamArch"></ul>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="cancelTeam">Zrušiť</button>
+    <button class="btn primary" id="saveTeam">Uložiť tím</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
