@@ -1,7 +1,9 @@
-// Nastavenie kalendára. Po nasadení Apps Scriptu sem vlož URL webovej aplikácie (končí na /exec).
-// Kým je apiUrl prázdne, kalendár ukladá zmeny len v tvojom prehliadači.
+// Nastavenie kalendára.
+// apiUrl '/api/data' = kalendár za tímovým prihlásením na Verceli. Adresu Apps Scriptu a kľúč
+// nastavíš vo Verceli (premenné GAS_URL a GAS_KEY), sem nepatria.
+// Bez servera (prázdne apiUrl) kalendár ukladá zmeny len v tvojom prehliadači.
 window.HO_CONFIG = {
-  apiUrl: '',
+  apiUrl: '/api/data',
   teamName: 'Sales tím',
   pollSeconds: 60
 };
