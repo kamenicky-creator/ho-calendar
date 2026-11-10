@@ -52,6 +52,9 @@ button,input,select{font:inherit;color:inherit}
 .app{max-width:1320px;margin:0 auto;padding:18px clamp(16px,3vw,32px) 56px}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;color:var(--ink-2);font-size:.9375rem}
 .top .brand{font-weight:600;color:var(--ink)}
+.top-right{display:inline-flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.logout{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+.logout:hover{color:var(--ink)}
 .sync{display:inline-flex;align-items:center;gap:8px}
 .sync::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dov)}
 .sync.busy::before{background:var(--ho)}
