@@ -6,6 +6,8 @@ Tímový prehľad, kto je v kancelárii a kto na home office. Hore vidíš vybra
 - Poznámka ku každému dňu
 - České štátne sviatky vrátane Veľkej noci sa vyznačia automaticky
 - Úprava tímu priamo v kalendári (pridať, premenovať, zoradiť, skryť)
+- Každý si po prihlásení vyberie, kto je, a mení len svoje dni. Správca môže meniť dni všetkých aj zoznam tímu.
+- Denník zmien: kto, kedy a čo zmenil, v kalendári aj v hárku „Zmeny“
 - Funguje na počítači aj v mobile, vo svetlom aj tmavom režime
 
 Kalendár beží na Verceli za spoločným tímovým heslom. Dáta sú v Google tabuľke, ku ktorej je pripojený malý server v Google Apps Scripte. Prehliadač komunikuje len s Vercelom: adresa Apps Scriptu a tímový kľúč zostávajú na serveri.
@@ -17,7 +19,7 @@ Kalendár beží na Verceli za spoločným tímovým heslom. Dáta sú v Google 
 | `index.html`, `assets/` | Samotný kalendár |
 | `login.html` | Prihlasovacia stránka |
 | `middleware.js` | Brána: bez prihlásenia Vercel nevydá žiadnu stránku ani dáta |
-| `api/` | Prihlásenie, odhlásenie a sprostredkovanie dát (Vercel Functions) |
+| `api/` | Prihlásenie, výber mena, odhlásenie a sprostredkovanie dát (Vercel Functions) |
 | `config.js` | Názov tímu a frekvencia obnovy |
 | `apps-script/Code.gs` | Server, vkladá sa do Google Apps Scriptu |
 | `apps-script/appsscript.json` | Nastavenie projektu, treba len pri nasadzovaní cez `clasp` |
@@ -44,6 +46,7 @@ Prístup „Ktokoľvek“ je potrebný, aby sa na server dostal Vercel. Bez tím
    | Premenná | Hodnota |
    | --- | --- |
    | `APP_PASSWORD` | tímové heslo na prihlásenie |
+   | `ADMIN_PASSWORD` | heslo správcu: môže meniť dni všetkých a zoznam tímu |
    | `GAS_URL` | URL webovej aplikácie z Apps Scriptu (končí na `/exec`) |
    | `GAS_KEY` | tímový kľúč z Apps Scriptu |
    | `SESSION_SECRET` | voliteľné: ľubovoľný náhodný text na podpis prihlásenia |
@@ -52,19 +55,24 @@ Prístup „Ktokoľvek“ je potrebný, aby sa na server dostal Vercel. Bez tím
 
 ### 3. Tím
 
-Pošli kolegom adresu kalendára a tímové heslo. Prehliadač si prihlásenie zapamätá na 30 dní.
+Pošli kolegom adresu kalendára a tímové heslo. Po prihlásení si každý vyberie svoje meno a odvtedy mení len svoje dni. Prehliadač si prihlásenie zapamätá na 30 dní. Kto chce zmeniť meno, odhlási sa a prihlási znova.
+
+Správca sa prihlási na tej istej stránke heslom z `ADMIN_PASSWORD`. Vyberie si svoje meno, alebo „Správca, nie som v zozname“, a môže meniť dni všetkých kolegov aj zoznam tímu.
+
+Výber mena funguje na dôvere: kto pozná tímové heslo, môže si vybrať aj cudzie meno. Bráni to omylom a vďaka denníku zmien je vidieť, kto čo urobil.
 
 ## Dáta v Google tabuľke
 
 - Hárok **Tím**: `id`, `meno`, `aktivny` (TRUE/FALSE). Poradie riadkov je poradie stĺpcov v kalendári.
 - Hárok pre každý mesiac, napríklad **2026-11**: `datum`, `den`, `poznamka` a potom stĺpec pre každého kolegu podľa jeho `id`.
 - V bunkách kolegov sú skratky `HO`, `Dov`, `Chor`, `Cesta`. Prázdna bunka znamená kanceláriu.
+- Hárok **Zmeny**: denník všetkých zmien z kalendára (`cas`, `kto`, `co`, `datum`, `koho`, `predtym`, `potom`). Vznikne sám pri prvej zmene. Ručné úpravy priamo v tabuľke sa doň nezapisujú.
 
 Hárok nového mesiaca vznikne sám pri prvom zápise. Tabuľku môžeš upravovať aj ručne, kalendár zmeny načíta do minúty.
 
 ## Bežná údržba
 
-- **Zmena hesla:** zmeň `APP_PASSWORD` a daj Redeploy. Všetci sa musia prihlásiť znova.
+- **Zmena hesla:** zmeň `APP_PASSWORD` alebo `ADMIN_PASSWORD` a daj Redeploy. Všetci sa musia prihlásiť znova.
 - **Odhlásenie všetkých bez zmeny hesla:** zmeň `SESSION_SECRET` a daj Redeploy.
 - **Zmena tímového kľúča:** nastav nový kľúč v Apps Scripte, ten istý vlož do `GAS_KEY` a daj Redeploy.
 - **Úprava servera:** po zmene `Code.gs` otvor **Nasadiť › Spravovať nasadenia**, uprav existujúce nasadenie a zvoľ **Nová verzia**. URL zostane rovnaká.

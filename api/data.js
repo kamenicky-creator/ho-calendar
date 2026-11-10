@@ -1,48 +1,31 @@
-// Sprostredkuje dopyty kalendára na Google Apps Script. Adresa servera aj tímový kľúč
-// zostávajú vo Verceli (GAS_URL, GAS_KEY), do prehliadača sa nikdy nedostanú.
-import { readCookie, verifyToken } from './_session.js';
+// Sprostredkuje dopyty kalendára na Google Apps Script a stráži, kto čo smie meniť:
+// člen tímu len svoje dni, správca dni všetkých aj zoznam tímu. Poznámky ku dňom môže meniť každý.
+import { sessionFromReq } from './_session.js';
+import { sendJson, readJsonBody, callGas } from './_http.js';
+
+const READ = new Set(['sync', 'team', 'month']);
+const WRITE = new Set(['setCells', 'setNotes', 'setTeam']);
 
 export default async function handler(req, res) {
-  const send = (status, obj) => {
-    res.statusCode = status;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.end(JSON.stringify(obj));
-  };
-  if (!(await verifyToken(readCookie(req.headers.cookie)))) return send(401, {ok: false, error: 'login_required'});
-  if (req.method !== 'POST') return send(405, {ok: false, error: 'bad_request'});
+  const s = await sessionFromReq(req);
+  if (!s) return sendJson(res, 401, {ok: false, error: 'login_required'});
+  if (req.method !== 'POST') return sendJson(res, 405, {ok: false, error: 'bad_request'});
 
-  const url = process.env.GAS_URL, key = process.env.GAS_KEY;
-  if (!url || !key) return send(200, {ok: false, error: 'proxy_not_configured'});
+  const body = await readJsonBody(req);
+  if (!body || (!READ.has(body.action) && !WRITE.has(body.action))) return sendJson(res, 200, {ok: false, error: 'bad_request'});
+  delete body.by;
 
-  let body = req.body;
-  if (body === undefined) body = await readRaw(req);
-  if (Buffer.isBuffer(body)) body = body.toString('utf8');
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return send(200, {ok: false, error: 'bad_request'});
-
-  let r;
-  try {
-    r = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain; charset=utf-8'},
-      body: JSON.stringify(Object.assign({}, body, {key})),
-      redirect: 'follow'
-    });
-  } catch (e) {
-    return send(502, {ok: false, error: 'network'});
+  if (WRITE.has(body.action)) {
+    if (s.member === '-') return sendJson(res, 200, {ok: false, error: 'identity_required'});
+    if (s.role !== 'a') {
+      if (body.action === 'setTeam') return sendJson(res, 200, {ok: false, error: 'forbidden'});
+      if (body.action === 'setCells') {
+        const ch = body.changes;
+        if (!Array.isArray(ch) || ch.some(c => !c || c.id !== s.member)) return sendJson(res, 200, {ok: false, error: 'forbidden'});
+      }
+    }
+    body.by = s.member; // do denníka zmien
   }
-  let j;
-  try { j = JSON.parse(await r.text()); } catch (e) { return send(502, {ok: false, error: 'network'}); }
-  if (j && j.ok === false && j.error === 'unauthorized') j = {ok: false, error: 'proxy_key_mismatch'};
-  return send(200, j);
-}
-
-function readRaw(req) {
-  return new Promise(resolve => {
-    let data = '';
-    req.on('data', c => { data += c; if (data.length > 1e6) req.destroy(); });
-    req.on('end', () => resolve(data));
-    req.on('error', () => resolve(''));
-  });
+  const j = await callGas(body);
+  return sendJson(res, j && j.status || 200, j || {ok: false, error: 'network'});
 }

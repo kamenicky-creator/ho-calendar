@@ -1,4 +1,5 @@
 import { checkPassword, createToken, sessionCookie, safeNext, isConfigured } from './_session.js';
+import { readRaw } from './_http.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return redirect(res, '/login');
@@ -9,11 +10,13 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.end('Vo Verceli chýba premenná prostredia APP_PASSWORD.');
   }
-  if (!(await checkPassword(body.password))) {
+  const role = await checkPassword(body.password);
+  if (!role) {
     await new Promise(r => setTimeout(r, 700)); // spomalí skúšanie hesiel naslepo
     return redirect(res, '/login?chyba=1' + (next !== '/' ? '&next=' + encodeURIComponent(next) : ''));
   }
-  res.setHeader('Set-Cookie', sessionCookie(await createToken()));
+  // Kto je, si vyberie až v kalendári (member '-').
+  res.setHeader('Set-Cookie', sessionCookie(await createToken(role, '-')));
   return redirect(res, next);
 }
 
@@ -30,13 +33,4 @@ async function readForm(req) {
   if (b && typeof b === 'object' && !Buffer.isBuffer(b)) return b;
   const p = new URLSearchParams(Buffer.isBuffer(b) ? b.toString('utf8') : String(b || ''));
   return {password: p.get('password'), next: p.get('next')};
-}
-
-function readRaw(req) {
-  return new Promise(resolve => {
-    let data = '';
-    req.on('data', c => { data += c; if (data.length > 1e5) req.destroy(); });
-    req.on('end', () => resolve(data));
-    req.on('error', () => resolve(''));
-  });
 }
