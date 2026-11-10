@@ -16,11 +16,18 @@
     <span class="brand" id="brand">Kancelária a home office</span>
     <span class="top-right">
       <span class="sync busy" id="sync" role="status" aria-live="polite">Pripájam sa…</span>
+      <span class="who" id="who" hidden></span>
       <a class="logout" id="logout" href="/api/logout" hidden>Odhlásiť sa</a>
     </span>
   </header>
 
-  <section class="board" aria-labelledby="bTitle">
+  <section class="picker" id="picker" aria-labelledby="pickTitle" hidden>
+    <h1 id="pickTitle">Kto si?</h1>
+    <p class="sub" id="pickSub"></p>
+    <ul class="magnets pick-list" id="pickList"></ul>
+  </section>
+
+  <section class="board" id="boardSec" aria-labelledby="bTitle">
     <div>
       <h1 id="bTitle"><span class="wd" id="bWd"></span><span class="dt" id="bDt"></span></h1>
       <div class="board-nav">
@@ -33,7 +40,7 @@
     <p class="board-note" id="bNote" hidden></p>
   </section>
 
-  <section aria-label="Mesačná tabuľka">
+  <section id="sheetSec" aria-label="Mesačná tabuľka">
     <div class="toolbar">
       <div class="month">
         <button class="btn icon" id="prevMonth" aria-label="Predchádzajúci mesiac">‹</button>
@@ -44,11 +51,15 @@
         <span class="brush-label">Klik označí:</span>
       </div>
       <div class="tools">
-        <label>Ja som <select id="me" data-fk="me"></select></label>
+        <label id="meLabel">Ja som <select id="me" data-fk="me"></select></label>
         <button class="btn small" id="teamBtn">Upraviť tím</button>
       </div>
     </div>
     <div class="grid-wrap" id="gridWrap"><table id="grid"></table></div>
+    <details class="log" id="logBox" hidden>
+      <summary id="logSum">Posledné zmeny v mesiaci</summary>
+      <ol class="log-list" id="logList"></ol>
+    </details>
     <p class="hint" id="hint">Vyber hore, čo chceš označiť, a klikni do políčka. Druhým klikom ho vrátiš na „Kancelária“. Na počítači môžeš myšou ťahať cez viac dní naraz, šípkami sa pohybuješ po tabuľke. Klikom na dátum zobrazíš daný deň hore.</p>
   </section>
 </div>

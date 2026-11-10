@@ -53,6 +53,8 @@ button,input,select{font:inherit;color:inherit}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;color:var(--ink-2);font-size:.9375rem}
 .top .brand{font-weight:600;color:var(--ink)}
 .top-right{display:inline-flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.who{color:var(--ink-2)}
+.who b{color:var(--ink);font-weight:620}
 .logout{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
 .logout:hover{color:var(--ink)}
 .sync{display:inline-flex;align-items:center;gap:8px}
@@ -148,6 +150,22 @@ tr:hover .note::placeholder,.note:focus::placeholder{opacity:.9}
 tfoot th,tfoot td{border-bottom:0;border-top:1px solid var(--line-2);font-size:.8125rem;color:var(--ink-2);text-align:center;padding:10px 4px}
 tfoot th.c-date{text-align:left;padding-left:12px;font-weight:550}
 tfoot td.c-m b{color:var(--ho-ink);font-weight:700}
+.cell.locked{cursor:default}
+.cell.locked:hover{background:transparent}
+.log{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.log summary{cursor:pointer;padding:12px 16px;font-weight:600;color:var(--ink-2);font-size:.9375rem}
+.log summary:hover{color:var(--ink)}
+.log-list{list-style:none;margin:0;padding:0 16px 10px}
+.log-list li{display:flex;gap:4px 12px;padding:8px 0;border-top:1px solid var(--line);font-size:.875rem;flex-wrap:wrap}
+.log-list time{color:var(--ink-3);min-width:7rem;font-variant-numeric:tabular-nums}
+.log-list b{font-weight:620}
+.log-list .empty{color:var(--ink-3)}
+.picker{padding:clamp(28px,6vw,72px) 0 40px}
+.picker h1{margin:0;font-size:clamp(3.4rem,10vw,7.25rem);font-weight:760;font-stretch:75%;line-height:.86;letter-spacing:-.025em}
+.picker .sub{margin:18px 0 26px;color:var(--ink-2);font-size:1.0625rem;max-width:56ch}
+.pick-list{gap:8px;max-width:62rem}
+button.magnet{border:0;font:inherit;font-weight:620;font-size:1rem;height:46px;padding:0 18px 0 14px;cursor:pointer}
+button.magnet:hover{box-shadow:inset 0 0 0 2px var(--x)}
 .grid-msg{padding:40px 24px;color:var(--ink-2);text-align:left}
 .grid-msg p{margin:0 0 14px}
 .key-panel{max-width:34rem}
