@@ -5,6 +5,7 @@
  *   hárok „Tím“      stĺpce id | meno | aktivny
  *   hárok „2026-11“  jeden hárok na mesiac: datum | den | poznamka | <id kolegu> | <id kolegu> | …
  *                    v bunkách kolegov: HO, Dov, Chor, Cesta; prázdna bunka = kancelária
+ *   hárok „Zmeny“    denník zmien z kalendára: cas | kto | co | datum | koho | predtym | potom
  *
  * Tabuľku môžeš upravovať aj ručne, kalendár zmeny načíta pri ďalšej synchronizácii.
  * Postup nasadenia je v README.md v repozitári.
@@ -15,6 +16,9 @@ const SPREADSHEET_ID = '';   // ID Google tabuľky s dátami; prázdne = tabuľk
 const DEFAULT_TEAM_KEY = ''; // tímový kľúč, ak ho nevytváraš funkciou vytvorTimovyKluc
 
 const TEAM_SHEET = 'Tím';
+const LOG_SHEET = 'Zmeny';
+const ADMIN_ID = '_admin';
+const LABEL = {o: 'Kancelária', ho: 'Home office', dov: 'Dovolenka / voľno', nem: 'Choroba / lekár', sc: 'Služobná cesta'};
 const FIXED_COLS = 3; // datum, den, poznamka
 const ID_RE = /^[A-Za-z0-9_\-.~:@+]{1,60}$/;
 const STATUS_TO_CELL = {ho: 'HO', dov: 'Dov', nem: 'Chor', sc: 'Cesta'};
@@ -46,20 +50,20 @@ function doPost(e) {
   try {
     switch (req.action) {
       case 'sync':
-        return out_({ok: true, data: {team: readTeam_(), month: readMonth_(checkYm_(req.ym))}});
+        return out_({ok: true, data: {team: readTeam_(), month: monthWithLog_(checkYm_(req.ym))}});
       case 'team':
         return out_({ok: true, data: readTeam_()});
       case 'month':
-        return out_({ok: true, data: readMonth_(checkYm_(req.ym))});
+        return out_({ok: true, data: monthWithLog_(checkYm_(req.ym))});
       case 'setTeam':
-        return out_({ok: true, data: withLock_(function () { return writeTeam_(req.members); })});
+        return out_({ok: true, data: withLock_(function () { return writeTeam_(req.members, req.by); })});
       case 'setCells': {
         const ym = checkYm_(req.ym);
-        return out_({ok: true, data: withLock_(function () { writeCells_(ym, req.changes); return readMonth_(ym); })});
+        return out_({ok: true, data: withLock_(function () { writeCells_(ym, req.changes, req.by); return monthWithLog_(ym); })});
       }
       case 'setNotes': {
         const ym = checkYm_(req.ym);
-        return out_({ok: true, data: withLock_(function () { writeNotes_(ym, req.changes); return readMonth_(ym); })});
+        return out_({ok: true, data: withLock_(function () { writeNotes_(ym, req.changes, req.by); return monthWithLog_(ym); })});
       }
       default:
         return out_({ok: false, error: 'bad_request'});
@@ -113,7 +117,7 @@ function readTeam_() {
   return {members: members};
 }
 
-function writeTeam_(members) {
+function writeTeam_(members, by, noLog) {
   if (!Array.isArray(members) || members.length > 300) throw {code: 'bad_request'};
   const seen = {};
   const rows = [];
@@ -122,11 +126,27 @@ function writeTeam_(members) {
     seen[m.id] = true;
     rows.push([String(m.id), String(m.name || '').trim().slice(0, 40) || String(m.id), m.active !== false]);
   });
+  const before = readTeam_().members;
   const sh = teamSheet_();
   const last = sh.getLastRow();
   if (last > 1) sh.getRange(2, 1, last - 1, 3).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
-  return readTeam_();
+  const after = readTeam_();
+  if (!noLog) {
+    const old = {};
+    before.forEach(function (m) { old[m.id] = m; });
+    const who = whoName_(by, after.members);
+    const now = new Date();
+    const log = [];
+    after.members.forEach(function (m) {
+      const o = old[m.id];
+      if (!o) { log.push([now, who, 'Tím', '', m.name, '', 'pridaný']); return; }
+      if (o.name !== m.name) log.push([now, who, 'Tím', '', m.name, o.name, m.name]);
+      if (o.active !== m.active) log.push([now, who, 'Tím', '', m.name, o.active ? 'aktívny' : 'skrytý', m.active ? 'aktívny' : 'skrytý']);
+    });
+    appendLog_(log);
+  }
+  return after;
 }
 
 /* ---------- mesiace ---------- */
@@ -210,47 +230,131 @@ function readMonth_(ym) {
   return res;
 }
 
-function rowIndex_(sh) {
+function monthGrid_(sh) {
   const tz = Session.getScriptTimeZone();
-  const last = sh.getLastRow();
-  const map = {};
-  if (last < 2) return map;
-  sh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r, i) {
-    const dd = dayKey_(r[0], tz);
-    if (dd) map[dd] = i + 2;
+  const vals = sh.getDataRange().getValues();
+  const header = vals[0].map(function (h) { return String(h).trim(); });
+  const rows = {};
+  for (let r = 1; r < vals.length; r++) {
+    const dd = dayKey_(vals[r][0], tz);
+    if (dd) rows[dd] = r + 1;
+  }
+  return {vals: vals, header: header, rows: rows};
+}
+
+function writeCells_(ym, changes, by) {
+  if (!Array.isArray(changes) || changes.length > 500) throw {code: 'bad_request'};
+  const sh = monthSheet_(ym, true);
+  const g = monthGrid_(sh);
+  const team = readTeam_().members;
+  const names = namesById_(team);
+  const who = whoName_(by, team);
+  const now = new Date();
+  const log = [];
+  changes.forEach(function (ch) {
+    if (!ch || !ID_RE.test(String(ch.id)) || !/^\d\d$/.test(String(ch.dd))) return;
+    const id = String(ch.id);
+    const row = g.rows[ch.dd];
+    if (!row) return;
+    let col = g.header.indexOf(id) + 1;
+    let old = '';
+    if (col < 1) {
+      g.header.push(id);
+      col = g.header.length;
+      sh.getRange(1, col).setValue(id).setFontWeight('bold');
+    } else {
+      old = g.vals[row - 1][col - 1];
+    }
+    const oldS = CELL_TO_STATUS[String(old === undefined ? '' : old).trim().toLowerCase()] || 'o';
+    const newS = STATUS_TO_CELL[ch.s] ? ch.s : 'o';
+    if (oldS === newS) return;
+    const val = STATUS_TO_CELL[newS] || '';
+    sh.getRange(row, col).setValue(val);
+    g.vals[row - 1][col - 1] = val;
+    log.push([now, who, 'Stav', ym + '-' + ch.dd, names[id] || id, LABEL[oldS], LABEL[newS]]);
   });
+  appendLog_(log);
+}
+
+function writeNotes_(ym, changes, by) {
+  if (!Array.isArray(changes) || changes.length > 100) throw {code: 'bad_request'};
+  const sh = monthSheet_(ym, true);
+  const g = monthGrid_(sh);
+  const who = whoName_(by, readTeam_().members);
+  const now = new Date();
+  const log = [];
+  changes.forEach(function (ch) {
+    if (!ch || !/^\d\d$/.test(String(ch.dd))) return;
+    const row = g.rows[ch.dd];
+    if (!row) return;
+    const text = String(ch.text || '').slice(0, 200);
+    const old = String(g.vals[row - 1][2] === undefined ? '' : g.vals[row - 1][2]);
+    if (old.trim() === text.trim()) return;
+    sh.getRange(row, 3).setValue(text);
+    g.vals[row - 1][2] = text;
+    log.push([now, who, 'Poznámka', ym + '-' + ch.dd, '', old, text]);
+  });
+  appendLog_(log);
+}
+
+/* ---------- denník zmien ---------- */
+
+function namesById_(team) {
+  const map = {};
+  team.forEach(function (m) { map[m.id] = m.name; });
   return map;
 }
 
-function writeCells_(ym, changes) {
-  if (!Array.isArray(changes) || changes.length > 500) throw {code: 'bad_request'};
-  const sh = monthSheet_(ym, true);
-  const rows = rowIndex_(sh);
-  const lastCol = Math.max(sh.getLastColumn(), FIXED_COLS);
-  const header = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
-  changes.forEach(function (ch) {
-    if (!ch || !ID_RE.test(String(ch.id)) || !/^\d\d$/.test(String(ch.dd))) return;
-    const row = rows[ch.dd];
-    if (!row) return;
-    let col = header.indexOf(String(ch.id)) + 1;
-    if (col < 1) {
-      header.push(String(ch.id));
-      col = header.length;
-      sh.getRange(1, col).setValue(String(ch.id)).setFontWeight('bold');
-    }
-    sh.getRange(row, col).setValue(STATUS_TO_CELL[ch.s] || '');
-  });
+function whoName_(by, team) {
+  if (!by) return 'neznámy';
+  if (by === ADMIN_ID) return 'Správca';
+  return namesById_(team)[by] || String(by).slice(0, 40);
 }
 
-function writeNotes_(ym, changes) {
-  if (!Array.isArray(changes) || changes.length > 100) throw {code: 'bad_request'};
-  const sh = monthSheet_(ym, true);
-  const rows = rowIndex_(sh);
-  changes.forEach(function (ch) {
-    if (!ch || !/^\d\d$/.test(String(ch.dd))) return;
-    const row = rows[ch.dd];
-    if (row) sh.getRange(row, 3).setValue(String(ch.text || '').slice(0, 200));
-  });
+function logSheet_() {
+  const ss = ss_();
+  let sh = ss.getSheetByName(LOG_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(LOG_SHEET);
+    sh.getRange(1, 1, 1, 7).setValues([['cas', 'kto', 'co', 'datum', 'koho', 'predtym', 'potom']]).setFontWeight('bold');
+    sh.getRange(2, 1, sh.getMaxRows() - 1, 1).setNumberFormat('yyyy-mm-dd hh:mm');
+    sh.getRange(2, 4, sh.getMaxRows() - 1, 1).setNumberFormat('@');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function appendLog_(rows) {
+  if (!rows.length) return;
+  const sh = logSheet_();
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, 7).setValues(rows);
+}
+
+// Posledné zmeny dní daného mesiaca a zmeny tímu urobené v tom mesiaci, od najnovšej.
+function readLog_(ym, limit) {
+  const sh = ss_().getSheetByName(LOG_SHEET);
+  if (!sh) return [];
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const start = Math.max(2, last - 1999);
+  const vals = sh.getRange(start, 1, last - start + 1, 7).getValues();
+  const tz = Session.getScriptTimeZone();
+  const out = [];
+  for (let i = vals.length - 1; i >= 0 && out.length < limit; i--) {
+    const r = vals[i];
+    const t = r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'yyyy-MM-dd HH:mm') : String(r[0]);
+    const date = r[3] instanceof Date ? Utilities.formatDate(r[3], tz, 'yyyy-MM-dd') : String(r[3]);
+    const inMonth = date ? date.slice(0, 7) === ym : (r[2] === 'Tím' && t.slice(0, 7) === ym);
+    if (!inMonth) continue;
+    out.push({t: t, by: String(r[1]), what: String(r[2]), date: date, whom: String(r[4]), from: String(r[5]).slice(0, 200), to: String(r[6]).slice(0, 200)});
+  }
+  return out;
+}
+
+function monthWithLog_(ym) {
+  const m = readMonth_(ym);
+  m.log = readLog_(ym, 30);
+  return m;
 }
 
 /* ---------- jednorazový import (volá ho Seed.gs) ---------- */
@@ -261,7 +365,7 @@ function importSeed_(seed) {
     if (readTeam_().members.length) {
       throw new Error('Hárok „Tím“ už obsahuje kolegov. Import sa spúšťa len raz, do prázdnej tabuľky.');
     }
-    writeTeam_(seed.team);
+    writeTeam_(seed.team, null, true);
     const tz = Session.getScriptTimeZone();
     Object.keys(seed.months).sort().forEach(function (ym) {
       checkYm_(ym);
