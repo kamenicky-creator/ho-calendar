@@ -10,6 +10,10 @@
  * Postup nasadenia je v README.md v repozitári.
  */
 
+// Voliteľné nastavenie. SPREADSHEET_ID nechaj prázdne, ak je skript pripojený k tabuľke (Rozšírenia › Apps Script).
+const SPREADSHEET_ID = '';   // ID Google tabuľky s dátami; prázdne = tabuľka, ku ktorej je skript pripojený
+const DEFAULT_TEAM_KEY = ''; // tímový kľúč, ak ho nevytváraš funkciou vytvorTimovyKluc
+
 const TEAM_SHEET = 'Tím';
 const FIXED_COLS = 3; // datum, den, poznamka
 const ID_RE = /^[A-Za-z0-9_\-.~:@+]{1,60}$/;
@@ -36,7 +40,7 @@ function doPost(e) {
   } catch (err) {
     return out_({ok: false, error: 'bad_request'});
   }
-  const key = PropertiesService.getScriptProperties().getProperty('TEAM_KEY');
+  const key = PropertiesService.getScriptProperties().getProperty('TEAM_KEY') || DEFAULT_TEAM_KEY;
   if (!key) return out_({ok: false, error: 'not_configured'});
   if (!req || req.key !== key) return out_({ok: false, error: 'unauthorized'});
   try {
@@ -75,14 +79,14 @@ function vytvorTimovyKluc() {
   const k = Utilities.getUuid().replace(/-/g, '').slice(0, 20);
   PropertiesService.getScriptProperties().setProperty('TEAM_KEY', k);
   Logger.log('Tímový kľúč: ' + k);
-  Logger.log('Odkaz pre tím: https://kamenicky-creator.github.io/ho-calendar/?kluc=' + k);
+  Logger.log('Vlož ho vo Verceli do premennej GAS_KEY.');
   return k;
 }
 
 /* ---------- tím ---------- */
 
 function teamSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = ss_();
   let sh = ss.getSheetByName(TEAM_SHEET);
   if (!sh) {
     sh = ss.insertSheet(TEAM_SHEET, 0);
@@ -152,7 +156,7 @@ function holidays_(y) {
 }
 
 function monthSheet_(ym, create) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = ss_();
   let sh = ss.getSheetByName(ym);
   if (sh || !create) return sh;
   sh = ss.insertSheet(ym);
@@ -294,6 +298,10 @@ function importSeed_(seed) {
 }
 
 /* ---------- pomocné ---------- */
+
+function ss_() {
+  return SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+}
 
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
