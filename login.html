@@ -4,72 +4,81 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#11002D">
 <title>Prihlásenie: kancelária a home office</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%A0%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Mulish:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+/* Farby a písma podľa vizuálnej identity PLG / Ticketportal (Logo Manual 2026). */
 :root{
-  color-scheme: light;
-  --paper:#EFF1EB; --surface:#FAFBF8; --ink:#1B2932; --ink-2:#4A5960; --ink-3:#7B8786; --line-2:#BCC4B8;
-  --o:#27466F; --ho:#DE9C2C; --dov:#2E8A76; --nem:#BE4A5D; --nem-ink:#7A2838; --sc:#6C5DB5;
-  --font:"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+  --dp:#11002D; --pu:#413357; --gr:#06D473; --pk:#FF80E3; --cd:#2A1A45; --wh:#FFFFFF; --lv:#DBD7E2; --md:#C9C2D6;
+  --font-h:"Bricolage Grotesque","Arial Black",Arial,sans-serif;
+  --font:"Mulish",Arial,Helvetica,sans-serif;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme: dark;
-    --paper:#11171C; --surface:#182026; --ink:#E3E8E2; --ink-2:#A6B0AC; --ink-3:#727D7A; --line-2:#3A464D;
-    --o:#8FB0DD; --ho:#E8AE4A; --dov:#5BC0A7; --nem:#E57A8C; --nem-ink:#F3AEBA; --sc:#9E90E6;
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme: dark;
-  --paper:#11171C; --surface:#182026; --ink:#E3E8E2; --ink-2:#A6B0AC; --ink-3:#727D7A; --line-2:#3A464D;
-  --o:#8FB0DD; --ho:#E8AE4A; --dov:#5BC0A7; --nem:#E57A8C; --nem-ink:#F3AEBA; --sc:#9E90E6;
+  background:var(--gr);
 }
 *,*::before,*::after{box-sizing:inherit}
-html,body{height:100%}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;display:flex;align-items:center}
-.wrap{width:100%;max-width:1320px;margin:0 auto;padding:32px clamp(20px,5vw,64px)}
-.brand{margin:0 0 clamp(20px,4vw,36px);font-weight:600;font-size:.9375rem;color:var(--ink-2)}
-h1{margin:0;font-size:clamp(3rem,9vw,6.5rem);font-weight:760;font-stretch:75%;line-height:.88;letter-spacing:-.025em;max-width:12ch}
-.dots{display:flex;gap:8px;margin:clamp(22px,4vw,34px) 0 clamp(26px,4vw,40px)}
-.dots span{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 -1.5px 0 rgba(0,0,0,.2)}
+html,body{min-height:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--gr);color:var(--wh);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;padding-top:10px}
+.panel{flex:1;display:flex;flex-direction:column;background:radial-gradient(ellipse 60% 80% at 96% 110%,rgba(6,212,115,.28),rgba(6,212,115,0) 70%),var(--dp);border-radius:clamp(22px,3.2vw,44px) clamp(22px,3.2vw,44px) 0 0}
+.wrap{flex:1;display:flex;flex-direction:column;width:100%;max-width:1320px;margin:0 auto;padding:clamp(24px,4vw,44px) clamp(20px,5vw,64px) clamp(20px,3vw,32px);position:relative}
+.logo{display:block;width:180px;height:30px;background:url("data:image/png;base64,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") left center/contain no-repeat;margin:4px 0 clamp(40px,8vw,88px)}
+.main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:center}
+.eyebrow{display:inline-block;margin:0 0 18px;padding:.3em .85em;border-radius:999px;background:var(--gr);color:var(--dp);font-family:var(--font-h);font-size:.8125rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+h1{margin:0;font-family:var(--font-h);font-size:clamp(2.8rem,7.5vw,5.75rem);font-weight:800;line-height:1;letter-spacing:-.02em;max-width:11ch}
+h1 em{font-style:normal;color:var(--gr)}
+.sub{margin:18px 0 34px;color:var(--md);font-size:1.125rem;max-width:44ch}
 form{max-width:30rem}
-label{display:block;font-weight:600;margin-bottom:8px}
+label{display:block;font-weight:700;margin-bottom:8px}
 .row{display:flex;gap:8px}
-input[type=password]{flex:1;min-width:0;height:48px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:1rem;padding:0 14px}
-button{height:48px;padding:0 20px;border:1px solid var(--ink);border-radius:10px;background:var(--ink);color:var(--surface);font:inherit;font-size:1rem;font-weight:620;cursor:pointer}
-button:hover{opacity:.92}
-:where(button,input):focus-visible{outline:2px solid var(--o);outline-offset:2px}
-input[aria-invalid="true"]{border-color:var(--nem)}
-.err{margin:10px 0 0;color:var(--nem-ink);font-weight:600}
-.foot{margin:18px 0 0;color:var(--ink-3);font-size:.9375rem}
+input[type=password]{flex:1;min-width:0;height:50px;border:0;border-radius:999px;background:var(--cd);color:var(--wh);font:inherit;font-size:1rem;padding:0 20px;box-shadow:inset 0 0 0 1px var(--pu)}
+input[type=password]:focus{outline:none;box-shadow:inset 0 0 0 2px var(--gr)}
+input[aria-invalid="true"]{box-shadow:inset 0 0 0 2px var(--pk)}
+button{height:50px;padding:0 26px;border:0;border-radius:999px;background:var(--gr);color:var(--dp);font-family:var(--font-h);font-size:1rem;font-weight:700;cursor:pointer}
+button:hover{background:var(--wh)}
+button:focus-visible{outline:2px solid var(--wh);outline-offset:3px}
+.err{margin:12px 0 0;padding-left:12px;border-left:3px solid var(--pk);font-weight:700}
+.motif{display:grid;grid-template-columns:repeat(6,clamp(26px,3.4vw,46px));gap:clamp(5px,.7vw,9px)}
+.motif span{aspect-ratio:1;border-radius:50%;background:var(--pu)}
+.motif .g{background:var(--gr)}
+.motif .p{background:var(--pk)}
+.foot{margin:clamp(40px,7vw,72px) 0 0;color:var(--md);font-size:.875rem}
 [hidden]{display:none !important}
+@media (max-width:760px){
+  .main{grid-template-columns:1fr}
+  .motif{order:-1;grid-template-columns:repeat(6,24px);gap:5px}
+}
 </style>
 </head>
 <body>
+<div class="panel">
 <main class="wrap">
-  <p class="brand">Sales tím: kancelária a home office</p>
-  <h1>Kto je dnes v&nbsp;kancelárii?</h1>
-  <div class="dots" aria-hidden="true">
-    <span style="background:var(--o)"></span><span style="background:var(--ho)"></span><span style="background:var(--dov)"></span><span style="background:var(--nem)"></span><span style="background:var(--sc)"></span>
-  </div>
-  <form method="post" action="/api/login">
-    <label for="pw">Tímové heslo</label>
-    <div class="row">
-      <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus aria-describedby="err">
-      <button type="submit">Vstúpiť</button>
+  <span class="logo" role="img" aria-label="Ticketportal PLG"></span>
+  <div class="main">
+    <div>
+      <p class="eyebrow">Sales tím</p>
+      <h1>Kto je dnes v&nbsp;<em>kancelárii?</em></h1>
+      <p class="sub">Prehľad home office a prítomnosti v kancelárii pre celý tím.</p>
+      <form method="post" action="/api/login">
+        <label for="pw">Tímové heslo</label>
+        <div class="row">
+          <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus aria-describedby="err">
+          <button type="submit">Vstúpiť</button>
+        </div>
+        <input type="hidden" name="next" id="next" value="/">
+        <p class="err" id="err" role="alert" hidden>Heslo nesedí. Skús to znova.</p>
+      </form>
     </div>
-    <input type="hidden" name="next" id="next" value="/">
-    <p class="err" id="err" role="alert" hidden>Heslo nesedí. Skús to znova.</p>
-  </form>
+    <div class="motif" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="g"></span><span></span><span></span><span></span><span class="p"></span><span></span><span></span><span></span></div>
+  </div>
   <p class="foot">Heslo ti pošle vedúci tímu. Prehliadač si prihlásenie zapamätá na 30 dní.</p>
 </main>
+</div>
 <script>
 (function(){
   var q = new URLSearchParams(location.search);
